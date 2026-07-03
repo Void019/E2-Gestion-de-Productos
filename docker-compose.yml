@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: techstore-postgres
+    environment:
+      POSTGRES_DB: techstore
+      POSTGRES_USER: techstore
+      POSTGRES_PASSWORD: techstore
+    ports:
+      - "5432:5432"
+    volumes:
+      - techstore_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  techstore_postgres_data:
