@@ -1,7 +1,8 @@
+version: "3.8"
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: techstore-postgres
+    container_name: techstore_db
     environment:
       POSTGRES_DB: techstore
       POSTGRES_USER: techstore
@@ -11,6 +12,28 @@ services:
     volumes:
       - techstore_postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U techstore -d techstore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  microservicio:
+    build: .
+    container_name: techstore_api
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/techstore
+      DB_USERNAME: techstore
+      DB_PASSWORD: techstore
+      APP_SECURITY_USERNAME: admin
+      APP_SECURITY_PASSWORD: Admin12345
+      JWT_SECRET: techstore-secret-key-techstore-secret-key-2026
+      JWT_EXPIRATION_MS: 3600000
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   techstore_postgres_data:
