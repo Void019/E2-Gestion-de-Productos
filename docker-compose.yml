@@ -26,10 +26,15 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/techstore
       DB_USERNAME: techstore
       DB_PASSWORD: techstore
-      APP_SECURITY_USERNAME: admin
+      APP_SECURITY_USERNAME: ${APP_SECURITY_USERNAME:-admin@techstore.cl}
       APP_SECURITY_PASSWORD: Admin12345
       JWT_SECRET: techstore-secret-key-techstore-secret-key-2026
       JWT_EXPIRATION_MS: 3600000
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AUDIT_QUEUE_URL: ${AUDIT_QUEUE_URL:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

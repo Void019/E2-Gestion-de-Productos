@@ -1,5 +1,7 @@
 package cl.techstore.api;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import cl.techstore.api.dto.LoginResponse;
 import cl.techstore.api.dto.ProductoDTO;
+import cl.techstore.api.model.Producto;
 import cl.techstore.api.repository.ProductoRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
@@ -104,6 +107,13 @@ class ProductoControllerIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
+
+        Producto productoEliminado = productoRepository.findById(productoCreado.getId()).orElseThrow();
+        assertFalse(productoEliminado.getActivo());
+
+        mockMvc.perform(get("/api/productos/{id}", productoCreado.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(token)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -141,6 +151,33 @@ class ProductoControllerIntegrationTest {
         mockMvc.perform(delete("/api/productos/{id}", 999L)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(token)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void crearProductoIgnoraActivoEnFalseYLoPersisteComoActivo() throws Exception {
+        String token = obtenerToken();
+
+        ProductoDTO nuevoProducto = new ProductoDTO();
+        nuevoProducto.setNombre("Mouse Gamer");
+        nuevoProducto.setDescripcion("Sensor optico");
+        nuevoProducto.setPrecio(29990.0);
+        nuevoProducto.setStock(12);
+        nuevoProducto.setCategoria("Electronica");
+        nuevoProducto.setActivo(false);
+
+        MvcResult createResult = mockMvc.perform(post("/api/productos")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(nuevoProducto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.activo").value(true))
+                .andReturn();
+
+        ProductoDTO productoCreado = objectMapper.readValue(
+                createResult.getResponse().getContentAsString(), ProductoDTO.class);
+
+        Producto productoPersistido = productoRepository.findById(productoCreado.getId()).orElseThrow();
+        assertTrue(productoPersistido.getActivo());
     }
 
     @Test
@@ -201,7 +238,7 @@ class ProductoControllerIntegrationTest {
 
     private String obtenerToken() throws Exception {
         Map<String, String> loginRequest = new HashMap<>();
-        loginRequest.put("username", "admin");
+        loginRequest.put("username", "admin@techstore.cl");
         loginRequest.put("password", "Admin12345");
 
         MvcResult loginResult = mockMvc.perform(post("/auth/login")

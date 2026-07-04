@@ -1,6 +1,6 @@
 # TechStore API
 
-Microservicio RESTful en Java con Spring Boot para administrar un catalogo de productos de la tienda ficticia TechStore Chile.
+Microservicio RESTful en Java con Spring Boot para administrar un catalogo de productos
 
 ## Caracteristicas
 

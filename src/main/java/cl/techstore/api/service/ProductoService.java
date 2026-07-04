@@ -4,6 +4,8 @@ import cl.techstore.api.model.Producto;
 import cl.techstore.api.repository.ProductoRepository;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -12,26 +14,31 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProductoService {
 
     private final ProductoRepository productoRepository;
+    private final AuditoriaService auditoriaService;
 
-    public ProductoService(ProductoRepository productoRepository) {
+    public ProductoService(ProductoRepository productoRepository, AuditoriaService auditoriaService) {
         this.productoRepository = productoRepository;
+        this.auditoriaService = auditoriaService;
     }
 
     @Transactional(readOnly = true)
     public List<Producto> listarTodos() {
-        return productoRepository.findAll();
+        return productoRepository.findAllByActivoTrueOrderByIdAsc();
     }
 
     @Transactional(readOnly = true)
     public Producto obtenerPorId(Long id) {
-        return productoRepository.findById(id)
+        return productoRepository.findByIdAndActivoTrue(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
     }
 
     @Transactional
     public Producto crear(Producto producto) {
         producto.setId(null);
-        return productoRepository.save(producto);
+        producto.setActivo(true);
+        Producto productoCreado = productoRepository.save(producto);
+        auditoriaService.registrarAccion("CREAR", productoCreado.getId(), obtenerUsuarioAutenticado());
+        return productoCreado;
     }
 
     @Transactional
@@ -43,14 +50,25 @@ public class ProductoService {
         productoExistente.setPrecio(productoActualizado.getPrecio());
         productoExistente.setStock(productoActualizado.getStock());
         productoExistente.setCategoria(productoActualizado.getCategoria());
-        productoExistente.setActivo(productoActualizado.getActivo());
 
-        return productoRepository.save(productoExistente);
+        Producto productoGuardado = productoRepository.save(productoExistente);
+        auditoriaService.registrarAccion("MODIFICAR", productoGuardado.getId(), obtenerUsuarioAutenticado());
+        return productoGuardado;
     }
 
     @Transactional
     public void eliminar(Long id) {
         Producto producto = obtenerPorId(id);
-        productoRepository.delete(producto);
+        producto.setActivo(false);
+        productoRepository.save(producto);
+        auditoriaService.registrarAccion("ELIMINAR", producto.getId(), obtenerUsuarioAutenticado());
+    }
+
+    private String obtenerUsuarioAutenticado() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null) {
+            return "sistema";
+        }
+        return authentication.getName();
     }
 }

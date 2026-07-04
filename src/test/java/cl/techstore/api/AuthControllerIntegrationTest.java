@@ -28,7 +28,7 @@ class AuthControllerIntegrationTest {
     @Test
     void loginConCredencialesValidasRetornaJwt() throws Exception {
         Map<String, String> request = new HashMap<>();
-        request.put("username", "admin");
+        request.put("username", "admin@techstore.cl");
         request.put("password", "Admin12345");
 
         mockMvc.perform(post("/auth/login")
@@ -43,7 +43,7 @@ class AuthControllerIntegrationTest {
     @Test
     void loginConCredencialesInvalidasRetornaUnauthorized() throws Exception {
         Map<String, String> request = new HashMap<>();
-        request.put("username", "admin");
+        request.put("username", "admin@techstore.cl");
         request.put("password", "incorrecta");
 
         mockMvc.perform(post("/auth/login")
@@ -84,7 +84,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         Map<String, String> sinPassword = new HashMap<>();
-        sinPassword.put("username", "admin");
+        sinPassword.put("username", "admin@techstore.cl");
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
