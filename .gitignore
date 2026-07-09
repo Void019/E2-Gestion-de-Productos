@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local secrets and deployment artifacts ###
+.env
+.env.*
+!.env.example
+task-def.json

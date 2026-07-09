@@ -12,7 +12,8 @@ env:
   ECR_REPOSITORY: techstore-api
   ECS_CLUSTER: techstore-cluster
   ECS_SERVICE: techstore-api-service
-  ECS_TASK_DEFINITION: task-def.json
+  ECS_TASK_DEFINITION_TEMPLATE: task-def.example.json
+  ECS_TASK_DEFINITION: task-def.generated.json
   CONTAINER_NAME: techstore-api
 
 jobs:
@@ -48,6 +49,30 @@ jobs:
       - name: Login To Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate Amazon ECS Task Definition
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          APP_SECURITY_USERNAME: ${{ secrets.APP_SECURITY_USERNAME }}
+          APP_SECURITY_PASSWORD: ${{ secrets.APP_SECURITY_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AUDIT_QUEUE_URL: ${{ secrets.AUDIT_QUEUE_URL }}
+        run: |
+          $taskDefinition = Get-Content $env:ECS_TASK_DEFINITION_TEMPLATE -Raw
+          $taskDefinition = $taskDefinition.Replace("<ACCOUNT_ID>", $env:ACCOUNT_ID)
+          $taskDefinition = $taskDefinition.Replace("<ECR_IMAGE_URI>", "placeholder-image")
+          $taskDefinition = $taskDefinition.Replace("<DB_URL>", $env:DB_URL)
+          $taskDefinition = $taskDefinition.Replace("<DB_USERNAME>", $env:DB_USERNAME)
+          $taskDefinition = $taskDefinition.Replace("<DB_PASSWORD>", $env:DB_PASSWORD)
+          $taskDefinition = $taskDefinition.Replace("<APP_SECURITY_USERNAME>", $env:APP_SECURITY_USERNAME)
+          $taskDefinition = $taskDefinition.Replace("<APP_SECURITY_PASSWORD>", $env:APP_SECURITY_PASSWORD)
+          $taskDefinition = $taskDefinition.Replace("<JWT_SECRET>", $env:JWT_SECRET)
+          $taskDefinition = $taskDefinition.Replace("<AUDIT_QUEUE_URL>", $env:AUDIT_QUEUE_URL)
+          Set-Content -Path $env:ECS_TASK_DEFINITION -Value $taskDefinition
+        shell: pwsh
 
       - name: Build And Push Docker Image
         id: build-image
