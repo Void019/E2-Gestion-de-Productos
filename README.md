@@ -1,24 +1,63 @@
 # TechStore API
 
-Microservicio RESTful en Java con Spring Boot para administrar un catalogo de productos
+Microservicio RESTful desarrollado con Java 17 y Spring Boot para la gestion de productos de TechStore Chile.
 
-## Caracteristicas
+## Estado del proyecto
 
-- CRUD de productos mediante endpoints REST.
-- Listado completo de productos.
-- Autenticacion JWT.
-- Persistencia en PostgreSQL con Docker.
-- Empaquetado como JAR ejecutable con Maven.
-- Pruebas automatizadas con Spring Boot Test y H2 en memoria.
+El proyecto se encuentra operativo y validado tanto en entorno local como en AWS.
+
+- Autenticacion JWT funcionando.
+- CRUD de productos funcionando.
+- Borrado logico implementado.
+- Auditoria asincrona con SQS y Lambda validada.
+- Despliegue en AWS con RDS, ECS Fargate, ALB y API Gateway validado.
+- Workflow de GitHub Actions preparado para CI/CD.
+
+Por tratarse de un repositorio publico, la URL desplegada y las credenciales activas no se versionan en este documento.
+
+## Arquitectura actual
+
+La solucion quedo compuesta por los siguientes servicios:
+
+- `API Gateway HTTP API` para exponer la API publicamente.
+- `Application Load Balancer` como punto de entrada hacia ECS.
+- `Amazon ECS Fargate` para ejecutar el contenedor de la API.
+- `Amazon RDS PostgreSQL` para persistencia.
+- `Amazon ECR` para almacenar la imagen Docker.
+- `Amazon SQS` para la auditoria asincrona.
+- `AWS Lambda` para consumir mensajes de auditoria.
+- `Amazon CloudWatch Logs` para trazabilidad y monitoreo.
+
+Flujo general:
+
+```text
+Cliente -> API Gateway -> ALB -> ECS Fargate -> RDS PostgreSQL
+                               |
+                               -> SQS -> Lambda -> CloudWatch Logs
+```
+
+## Caracteristicas principales
+
+- CRUD REST de productos.
+- Endpoints protegidos con JWT bajo `/api/productos`.
+- Login publico en `/auth/login`.
+- Persistencia en PostgreSQL.
+- Borrado logico de productos con campo `activo`.
+- Auditoria de operaciones `POST`, `PUT` y `DELETE`.
+- Pruebas automatizadas con Spring Boot Test y H2.
+- Dockerfile y `docker-compose.yml` para entorno local.
 
 ## Estructura principal
 
 ```text
 src/main/java/cl/techstore/api/
+|-- config/
+|   `-- SqsConfig.java
 |-- controller/
 |   |-- AuthController.java
 |   `-- ProductoController.java
 |-- dto/
+|   |-- AuditoriaEvento.java
 |   |-- LoginRequest.java
 |   |-- LoginResponse.java
 |   `-- ProductoDTO.java
@@ -31,6 +70,7 @@ src/main/java/cl/techstore/api/
 |   |-- JwtUtil.java
 |   `-- SecurityConfig.java
 |-- service/
+|   |-- AuditoriaService.java
 |   `-- ProductoService.java
 `-- TechstoreApiApplication.java
 ```
@@ -40,10 +80,34 @@ src/main/java/cl/techstore/api/
 - Java 17
 - Maven 3.9+
 - Docker Desktop
+- Cuenta AWS Academy Learner Lab para despliegue en nube
 
-## Levantar el proyecto con Docker
+## Configuracion por variables de entorno
 
-Desde la carpeta raiz `techstore-api`:
+La aplicacion utiliza variables de entorno para base de datos, seguridad y AWS.
+
+Variables principales:
+
+- `DB_URL`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `APP_SECURITY_USERNAME`
+- `APP_SECURITY_PASSWORD`
+- `JWT_SECRET`
+- `JWT_EXPIRATION_MS`
+- `AWS_REGION`
+- `AUDIT_QUEUE_URL`
+
+Valores por defecto locales definidos en `src/main/resources/application.properties`:
+
+- `APP_SECURITY_USERNAME=local-admin@example.com`
+- `APP_SECURITY_PASSWORD=change-me-local-password`
+- `JWT_EXPIRATION_MS=3600000`
+- `AWS_REGION=us-east-1`
+
+## Ejecucion local con Docker
+
+Desde la carpeta raiz del proyecto:
 
 ```bash
 docker compose up --build
@@ -54,38 +118,43 @@ Servicios disponibles:
 - API: `http://localhost:8080`
 - PostgreSQL: `localhost:5432`
 
-## Credenciales por defecto
+Credenciales locales por defecto:
 
-Autenticacion JWT:
-
-- Usuario: `admin`
-- Contrasena: `Admin12345`
-
-Base de datos PostgreSQL:
-
+- Usuario API: `local-admin@example.com`
+- Contrasena API: `change-me-local-password`
 - Base de datos: `techstore`
-- Usuario: `techstore`
-- Contrasena: `techstore`
+- Usuario DB: `techstore`
+- Contrasena DB: `techstore`
+
+## Ejecucion local sin Docker
+
+Primero debes tener PostgreSQL disponible y configurar las variables de entorno necesarias. Luego puedes iniciar la aplicacion con:
+
+```bash
+mvn spring-boot:run
+```
 
 ## Datos iniciales
 
-Al levantar PostgreSQL se ejecuta el script [init.sql](file:///d:/Duoc/2026/Java%20Dise%C3%B1o%20y%20construccion%20de%20soluciones%20nativas%20en%20nube/Prueba%203/Techstore-app/techstore-api/docker/postgres/init.sql), que crea la tabla `products` y carga 5 productos de ejemplo.
+El script [`docker/postgres/init.sql`](docker/postgres/init.sql) crea la tabla `products` y carga 5 productos de ejemplo.
+
+Este script fue utilizado tambien para inicializar la base PostgreSQL desplegada en RDS.
 
 ## Autenticacion
 
-Endpoint de login:
+Endpoint publico:
 
 ```http
 POST /auth/login
 Content-Type: application/json
 ```
 
-Body:
+Body de ejemplo:
 
 ```json
 {
-  "username": "admin",
-  "password": "Admin12345"
+  "username": "usuario-configurado@example.com",
+  "password": "tu-password-configurada"
 }
 ```
 
@@ -105,19 +174,20 @@ Para consumir endpoints protegidos:
 Authorization: Bearer TU_TOKEN
 ```
 
-## Endpoints
+## Endpoints principales
 
-### Productos
-
-- `GET /api/productos` -> lista todos los productos.
-- `GET /api/productos/{id}` -> obtiene un producto por id.
-- `POST /api/productos` -> crea un producto.
-- `PUT /api/productos/{id}` -> actualiza un producto.
-- `DELETE /api/productos/{id}` -> elimina un producto.
+- `POST /auth/login` -> login publico.
+- `GET /api/productos` -> lista productos activos.
+- `GET /api/productos/{id}` -> obtiene un producto activo por id.
+- `POST /api/productos` -> crea un producto y registra auditoria.
+- `PUT /api/productos/{id}` -> actualiza un producto y registra auditoria.
+- `DELETE /api/productos/{id}` -> realiza borrado logico y registra auditoria.
 
 ## Codigos HTTP esperados
 
-- `GET /api/productos` -> `200 OK`
+- `POST /auth/login` -> `200 OK`
+- `GET /api/productos` con token -> `200 OK`
+- `GET /api/productos` sin token -> `403 Forbidden`
 - `POST /api/productos` -> `201 Created`
 - `PUT /api/productos/{id}` -> `200 OK`
 - `DELETE /api/productos/{id}` -> `204 No Content`
@@ -136,23 +206,70 @@ Authorization: Bearer TU_TOKEN
 }
 ```
 
-## Ejecutar sin Docker
+## Auditoria asincrona
 
-Primero debes tener PostgreSQL disponible y configurar:
+Cada vez que se crea, modifica o elimina logicamente un producto, la API envia un mensaje JSON a la cola SQS configurada en `AUDIT_QUEUE_URL`.
 
+Ejemplo de evento:
+
+```json
+{
+  "accion": "CREAR",
+  "productoId": 12,
+  "usuario": "usuario-configurado@example.com",
+  "fecha": "2026-07-03T20:49:39Z"
+}
+```
+
+La cola es consumida por una funcion Lambda que registra la auditoria en CloudWatch Logs.
+
+## Despliegue en AWS
+
+Recursos utilizados en la version desplegada:
+
+- `Amazon RDS PostgreSQL`
+- `Amazon ECR` repositorio `techstore-api`
+- `Amazon ECS Fargate`
+- `Application Load Balancer`
+- `Amazon API Gateway HTTP API`
+- `Amazon SQS` cola `techstore-audit-queue`
+- `AWS Lambda` funcion `techstore-audit-logger`
+- `LabRole` como rol obligatorio del laboratorio
+
+Estado validado del despliegue:
+
+- Login publico operativo.
+- Rutas protegidas con JWT operativas.
+- CRUD operativo.
+- Auditoria asincrona validada.
+- Target Group healthy en ECS.
+
+## CI/CD
+
+Se incluyo el workflow [`deploy.yml`](.github/workflows/deploy.yml) para automatizar:
+
+- ejecucion de pruebas Maven
+- build de imagen Docker
+- push a Amazon ECR
+- actualizacion del servicio ECS
+
+Para ejecutarlo en GitHub Actions se deben configurar estos secretos:
+
+- `AWS_ACCOUNT_ID`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_SESSION_TOKEN`
 - `DB_URL`
 - `DB_USERNAME`
 - `DB_PASSWORD`
 - `APP_SECURITY_USERNAME`
 - `APP_SECURITY_PASSWORD`
 - `JWT_SECRET`
-- `JWT_EXPIRATION_MS`
+- `AUDIT_QUEUE_URL`
 
-Luego puedes ejecutar:
+Nota: en AWS Academy las credenciales son temporales, por lo que estos secretos deben actualizarse cada vez que se reinicia la sesion del laboratorio.
 
-```bash
-mvn spring-boot:run
-```
+La URL publica de API Gateway, el endpoint real de RDS y cualquier credencial efectiva deben mantenerse fuera del repositorio y gestionarse mediante variables de entorno o `GitHub Secrets`.
 
 ## Comandos Maven
 
@@ -180,27 +297,30 @@ Ejecutar el JAR:
 java -jar target/techstore-api-0.0.1-SNAPSHOT.jar
 ```
 
-## Pruebas
+## Pruebas automatizadas
 
 El proyecto incluye:
 
-- pruebas de integracion para login JWT.
-- pruebas de integracion para CRUD de productos.
-- perfil `test` con H2 en memoria en `src/test/resources/application-test.properties`.
+- pruebas de integracion para login JWT
+- pruebas de integracion para CRUD de productos
+- perfil `test` con H2 en memoria en `src/test/resources/application-test.properties`
+
+Resultado local validado:
+
+- `mvn test` exitoso
+- `mvn clean package -DskipTests` exitoso
 
 ## Archivos importantes
 
-- [pom.xml](file:///d:/Duoc/2026/Java%20Dise%C3%B1o%20y%20construccion%20de%20soluciones%20nativas%20en%20nube/Prueba%203/Techstore-app/techstore-api/pom.xml)
-- [docker-compose.yml](file:///d:/Duoc/2026/Java%20Dise%C3%B1o%20y%20construccion%20de%20soluciones%20nativas%20en%20nube/Prueba%203/Techstore-app/techstore-api/docker-compose.yml)
-- [Dockerfile](file:///d:/Duoc/2026/Java%20Dise%C3%B1o%20y%20construccion%20de%20soluciones%20nativas%20en%20nube/Prueba%203/Techstore-app/techstore-api/Dockerfile)
-- [application.properties](file:///d:/Duoc/2026/Java%20Dise%C3%B1o%20y%20construccion%20de%20soluciones%20nativas%20en%20nube/Prueba%203/Techstore-app/techstore-api/src/main/resources/application.properties)
+- [`pom.xml`](pom.xml)
+- [`Dockerfile`](Dockerfile)
+- [`docker-compose.yml`](docker-compose.yml)
+- [`task-def.example.json`](task-def.example.json)
+- [`src/main/resources/application.properties`](src/main/resources/application.properties)
+- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 
-## Estado actual
+## Nota de seguridad
 
-El proyecto fue validado con exito en:
+Antes de subir el proyecto a GitHub, revisa que no se publiquen secretos reales de AWS o contrasenas productivas en archivos versionados.
 
-- compilacion Maven
-- pruebas automatizadas
-- ejecucion real con Docker
-- login JWT
-- CRUD completo contra PostgreSQL
+Este repositorio utiliza `task-def.example.json` como plantilla publica y deja `task-def.json` ignorado en `.gitignore` para evitar subir credenciales o configuraciones sensibles.

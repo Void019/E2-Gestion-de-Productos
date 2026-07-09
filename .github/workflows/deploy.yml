@@ -1,0 +1,106 @@
+name: Deploy Techstore API
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: techstore-api
+  ECS_CLUSTER: techstore-cluster
+  ECS_SERVICE: techstore-api-service
+  ECS_TASK_DEFINITION_TEMPLATE: task-def.example.json
+  ECS_TASK_DEFINITION: task-def.generated.json
+  CONTAINER_NAME: techstore-api
+
+jobs:
+  deploy:
+    name: Build And Deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build With Maven
+        run: mvn -B test
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login To Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate Amazon ECS Task Definition
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          APP_SECURITY_USERNAME: ${{ secrets.APP_SECURITY_USERNAME }}
+          APP_SECURITY_PASSWORD: ${{ secrets.APP_SECURITY_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AUDIT_QUEUE_URL: ${{ secrets.AUDIT_QUEUE_URL }}
+        run: |
+          $taskDefinition = Get-Content $env:ECS_TASK_DEFINITION_TEMPLATE -Raw
+          $taskDefinition = $taskDefinition.Replace("<ACCOUNT_ID>", $env:ACCOUNT_ID)
+          $taskDefinition = $taskDefinition.Replace("<ECR_IMAGE_URI>", "placeholder-image")
+          $taskDefinition = $taskDefinition.Replace("<DB_URL>", $env:DB_URL)
+          $taskDefinition = $taskDefinition.Replace("<DB_USERNAME>", $env:DB_USERNAME)
+          $taskDefinition = $taskDefinition.Replace("<DB_PASSWORD>", $env:DB_PASSWORD)
+          $taskDefinition = $taskDefinition.Replace("<APP_SECURITY_USERNAME>", $env:APP_SECURITY_USERNAME)
+          $taskDefinition = $taskDefinition.Replace("<APP_SECURITY_PASSWORD>", $env:APP_SECURITY_PASSWORD)
+          $taskDefinition = $taskDefinition.Replace("<JWT_SECRET>", $env:JWT_SECRET)
+          $taskDefinition = $taskDefinition.Replace("<AUDIT_QUEUE_URL>", $env:AUDIT_QUEUE_URL)
+          Set-Content -Path $env:ECS_TASK_DEFINITION -Value $taskDefinition
+        shell: pwsh
+
+      - name: Build And Push Docker Image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          $imageUri = "$env:ECR_REGISTRY/$env:ECR_REPOSITORY:$env:IMAGE_TAG"
+          $latestImageUri = "$env:ECR_REGISTRY/$env:ECR_REPOSITORY:latest"
+          docker build -t $imageUri .
+          docker tag $imageUri $latestImageUri
+          docker push $imageUri
+          docker push $latestImageUri
+          "image=$imageUri" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Render Amazon ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS Task Definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

@@ -20,6 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("test")
 class AuthControllerIntegrationTest {
 
+    private static final String TEST_USERNAME = "test-admin@techstore.local";
+    private static final String TEST_PASSWORD = "test-password-123";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -28,8 +31,8 @@ class AuthControllerIntegrationTest {
     @Test
     void loginConCredencialesValidasRetornaJwt() throws Exception {
         Map<String, String> request = new HashMap<>();
-        request.put("username", "admin@techstore.cl");
-        request.put("password", "Admin12345");
+        request.put("username", TEST_USERNAME);
+        request.put("password", TEST_PASSWORD);
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -43,7 +46,7 @@ class AuthControllerIntegrationTest {
     @Test
     void loginConCredencialesInvalidasRetornaUnauthorized() throws Exception {
         Map<String, String> request = new HashMap<>();
-        request.put("username", "admin@techstore.cl");
+        request.put("username", TEST_USERNAME);
         request.put("password", "incorrecta");
 
         mockMvc.perform(post("/auth/login")
@@ -84,7 +87,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         Map<String, String> sinPassword = new HashMap<>();
-        sinPassword.put("username", "admin@techstore.cl");
+        sinPassword.put("username", TEST_USERNAME);
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,7 +95,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         Map<String, String> sinUsername = new HashMap<>();
-        sinUsername.put("password", "Admin12345");
+        sinUsername.put("password", TEST_PASSWORD);
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

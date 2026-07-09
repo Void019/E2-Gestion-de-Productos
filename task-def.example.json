@@ -1,0 +1,42 @@
+{
+  "family": "techstore-api-task",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/LabRole",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/LabRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "techstore-api",
+      "image": "<ECR_IMAGE_URI>",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "DB_URL", "value": "<DB_URL>" },
+        { "name": "DB_USERNAME", "value": "<DB_USERNAME>" },
+        { "name": "DB_PASSWORD", "value": "<DB_PASSWORD>" },
+        { "name": "APP_SECURITY_USERNAME", "value": "<APP_SECURITY_USERNAME>" },
+        { "name": "APP_SECURITY_PASSWORD", "value": "<APP_SECURITY_PASSWORD>" },
+        { "name": "JWT_SECRET", "value": "<JWT_SECRET>" },
+        { "name": "JWT_EXPIRATION_MS", "value": "3600000" },
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "AUDIT_QUEUE_URL", "value": "<AUDIT_QUEUE_URL>" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/techstore-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

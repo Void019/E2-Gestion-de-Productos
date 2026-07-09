@@ -32,6 +32,9 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 class ProductoControllerIntegrationTest {
 
+    private static final String TEST_USERNAME = "test-admin@techstore.local";
+    private static final String TEST_PASSWORD = "test-password-123";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -238,8 +241,8 @@ class ProductoControllerIntegrationTest {
 
     private String obtenerToken() throws Exception {
         Map<String, String> loginRequest = new HashMap<>();
-        loginRequest.put("username", "admin@techstore.cl");
-        loginRequest.put("password", "Admin12345");
+        loginRequest.put("username", TEST_USERNAME);
+        loginRequest.put("password", TEST_PASSWORD);
 
         MvcResult loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
